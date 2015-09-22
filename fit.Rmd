@@ -1,0 +1,115 @@
+---
+title: "Project of Practical Machine Learning"
+author: "Ricardo Pereira"
+date: "22 Sep 2015"
+output: 
+  html_document:
+    pandoc_args: ["+RTS", "-K128m","-RTS"]
+---
+
+# Executive Summary
+
+Personal activity devices are popular today for collecting a large amount of data during sport practice or normal day-to-day activity.  In this analysis the goal was to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict if users were doing barbell lifts correctly and incorrectly in 5 different ways.
+The analysis was performed using decision trees, bagging and random forest. The latter proved to provide the best results in cross validation tests.
+
+# Data
+
+We start by loading the data supporting this exercise:
+
+```{r}
+library(data.table)
+library(caret)
+library(rpart)
+
+df<-fread('http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv')
+```
+
+# Data cleaning
+
+1st : Remove user specificic data which would be bad predictors anyway:
+```{r}
+df<-df[,-c(1:7),with=FALSE]
+```
+
+2nd : Remove all variable which don't have enough variance to influence the results
+```{r}
+df<-df[,!nearZeroVar(df,saveMetrics = T)$nzv,with=FALSE]
+```
+
+3rd : Remove variable with too many NAs to be used as predictors (50% as threshold)
+```{r}
+df<-df[,colSums(!is.na(df)) >= 0.5*nrow(df),with=FALSE]
+```
+
+4th : Making class a factor variable
+```{r}
+df<-df[,classe:=factor(df$classe)]
+```
+
+
+To support our decision process before submitting the prediction for the second part of the project, we split the training data we have, so that we have a testing set of out own.
+```{r}
+set.seed(42)
+training_data <- createDataPartition(y = df$classe, p = 0.60)
+training <- df[training_data[[1]]]
+testing  <- df[-training_data[[1]]]
+```
+
+# Modelling
+
+# Decision tree
+
+A tree model can easily be built using rpart:
+```{r}
+fit <- rpart(classe ~ .,data=training,method='class')
+```
+
+How good the model is can be checked by using a confusion matrix with the testing data we set apart:
+```{r}
+predData <- predict(fit,testing,type='class')
+confusionMatrix(predData,testing$classe)
+```
+
+The 75% accuracy is rather poor for our goals. Although further improvement could be achieved if we "cured" a bit more the input variables, other learning methods may provide better results with less effort.
+
+# Bagging
+
+The same process can now be repeated with bagging as provided in ipred library.
+
+```{r}
+library(ipred)
+fit <- bagging(classe ~ .,data=training)
+```
+
+Like before we can estimate errors with cross validation of testing set:
+
+```{r}
+predData <- predict(fit,testing,type='class')
+confusionMatrix(predData,testing$classe)
+```
+
+97% is now a much better accuracy level.
+
+# Random forest
+
+For last we repeat the process now with Random Tree algorithm.
+
+```{r}
+library(randomForest)
+fit <- randomForest(classe ~ .,data=training)
+```
+
+The accuracy is now much better than before:
+
+```{r}
+predData <- predict(fit,testing,type='class')
+confusionMatrix(predData,testing$classe)
+```
+
+At 99.39% the accuracy is now excellent, and only generated an out of sample 0.6% error.
+
+# Conclusion
+
+The analysis of the 3 classification models demonstrated in practice the improvement introduced by
+averaging methods. The final 99.39 accuracy level for the 40% of the original training population that was left out for testing, gives high confidence to the predicability of the model.
+
